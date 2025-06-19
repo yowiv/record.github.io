@@ -13,13 +13,13 @@ const { ElMessage } = ElementPlus;
 
 // 创建 Vue 应用实例
 const app = createApp({
-    setup() {
-        // 响应式数据
+    setup() {        // 响应式数据
         const playerName = ref('');
         const loading = ref(false);
         const apiResponse = ref(null);
         const errorMessage = ref('');
         const activeTab = ref('双排');
+        const imageError = ref(false);
 
         // 计算当前选中模式对应的对局记录
         const currentBattles = computed(() => {
@@ -75,11 +75,10 @@ const app = createApp({
             if (!playerName.value.trim()) {
                 ElMessage?.warning('请输入玩家名称') || alert('请输入玩家名称');
                 return;
-            }
-
-            loading.value = true;
+            }            loading.value = true;
             errorMessage.value = '';
             apiResponse.value = null;
+            imageError.value = false;
 
             try {
                 const controller = new AbortController();
@@ -149,11 +148,19 @@ const app = createApp({
             const hours = Math.floor(seconds / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
             return `${hours}小时${minutes}分钟`;
-        };
-
-        // 处理图片加载错误
+        };        // 处理图片加载错误
         const handleImageError = (event) => {
-            event.target.style.display = 'none';
+            // 移除错误的图片元素
+            const imgElement = event.target;
+            const parent = imgElement.parentElement;
+            
+            // 创建默认头像元素
+            const defaultAvatar = document.createElement('div');
+            defaultAvatar.className = 'default-avatar';
+            defaultAvatar.textContent = '👤';
+            
+            // 替换错误的图片
+            parent.replaceChild(defaultAvatar, imgElement);
         };
 
         // 获取排名样式类
@@ -208,14 +215,13 @@ const app = createApp({
             if (hours > 0) return `${hours}小时前`;
             if (minutes > 0) return `${minutes}分钟前`;
             return '刚刚';
-        };
-
-        return {
+        };        return {
             playerName,
             loading,
             apiResponse,
             errorMessage,
             activeTab,
+            imageError,
             currentBattles,
             onTabChange,
             searchPlayer,
