@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="format-detection" content="telephone=no">
+    <title>永劫无间战绩查询</title>
+    
+    <!-- 预加载关键字体 -->
+    <link rel="preconnect" href="https://unpkg.com">
+    
+    <!-- 外部依赖 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js" onerror="console.error('Vue加载失败')"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js" onerror="console.error('ElementPlus加载失败')"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue/dist/index.iife.js" onerror="console.error('图标库加载失败')"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" onerror="console.error('ElementPlus样式加载失败')" />
+    
+    <!-- 本地样式文件 -->
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <!-- 标题 -->
+            <el-card class="header-card" shadow="hover">
+                <h1 class="header-title">永劫无间战绩查询</h1>
+                <p style="color: #606266;">输入游戏角色名称查询排位战绩信息</p>
+            </el-card>
+
+            <!-- 搜索区域 -->
+            <el-card class="search-card" shadow="hover">
+                <div class="search-form">
+                    <el-input
+                        v-model="playerName"
+                        placeholder="请输入玩家名称..."
+                        class="search-input"
+                        size="large"
+                        @keyup.enter="searchPlayer"
+                        :disabled="loading"
+                        clearable
+                    >
+                        <template #prefix>
+                            <el-icon><User /></el-icon>
+                        </template>
+                    </el-input>
+                    <el-button
+                        type="primary"
+                        size="large"
+                        @click="searchPlayer"
+                        :loading="loading"
+                        :disabled="!playerName.trim()"
+                    >
+                        <el-icon><Search /></el-icon>
+                        查询战绩
+                    </el-button>
+                </div>
+            </el-card>
+
+            <!-- 玩家基本信息 -->
+            <el-card 
+                v-if="apiResponse && apiResponse.player_data" 
+                class="player-info-card" 
+                shadow="hover"
+            >
+                <template #header>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <el-icon color="#409eff"><Avatar /></el-icon>
+                        <span style="font-weight: bold;">玩家信息</span>
+                    </div>
+                </template>
+                
+                <!-- 玩家头像和基本信息 -->
+                <div class="player-header" v-if="apiResponse.basic_stats && apiResponse.basic_stats.data && apiResponse.basic_stats.data.role">
+                    <img 
+                        v-if="apiResponse.basic_stats.data.role.head_icon"
+                        :src="apiResponse.basic_stats.data.role.head_icon" 
+                        :alt="apiResponse.basic_stats.data.role.role_name"
+                        class="player-avatar"
+                        @error="handleImageError"
+                    />
+                    <div v-else class="default-avatar">👤</div>
+                    <div class="player-basic">
+                        <div class="player-name">{{ apiResponse.basic_stats.data.role.role_name }}</div>
+                        <div class="player-level">Lv.{{ apiResponse.basic_stats.data.role.role_level }}</div>
+                    </div>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">角色ID</span>
+                        <span class="info-value">{{ extractRoleId(apiResponse.player_data.data.role_id) }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">服务器</span>
+                        <span class="info-value">{{ apiResponse.player_data.data.server_name }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">游戏时长</span>
+                        <span class="info-value">{{ formatGameTime(apiResponse.player_data.data.game_time) }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">更新时间</span>
+                        <span class="info-value">{{ apiResponse.player_data.data.update_time }}</span>
+                    </div>
+                </div>
+            </el-card>
+
+            <!-- 排位战绩统计 -->
+            <el-card 
+                v-if="apiResponse && apiResponse.detailed_stats && Object.keys(apiResponse.detailed_stats).length > 0" 
+                class="detailed-stats-section" 
+                shadow="hover"
+            >
+                <template #header>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <el-icon color="#409eff"><Trophy /></el-icon>
+                        <span style="font-weight: bold;">排位战绩统计</span>
+                    </div>
+                </template>
+                
+                <el-tabs v-model="activeTab" class="mode-tabs" @tab-change="onTabChange">
+                    <el-tab-pane 
+                        v-for="(modeResponse, modeName) in apiResponse.detailed_stats" 
+                        :key="modeName"
+                        :label="modeName" 
+                        :name="modeName"
+                    >
+                        <div v-if="modeResponse && modeResponse.code === 0 && modeResponse.data">
+                            <!-- 段位展示 -->
+                            <div v-if="modeResponse.data.grade" class="grade-display">
+                                <img 
+                                    v-if="modeResponse.data.grade.grade_icon"
+                                    :src="modeResponse.data.grade.grade_icon" 
+                                    :alt="modeResponse.data.grade.grade_name"
+                                    class="grade-icon"
+                                    @error="handleImageError"
+                                />
+                                <div v-else class="grade-icon" style="background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px;">🏆</div>
+                                <div class="grade-info">
+                                    <div class="grade-name">
+                                        {{ getFullGradeName(modeResponse.data.grade) }}
+                                    </div>
+                                    <div class="grade-score">
+                                        {{ modeResponse.data.grade.grade_score || 0 }} / {{ modeResponse.data.grade.grade_threshold || 0 }} 分
+                                    </div>
+                                </div>
+                                <div v-if="modeResponse.data.dragon_kill" class="dragon-kill">
+                                    <div class="dragon-kill-number">🐉 {{ modeResponse.data.dragon_kill }}</div>
+                                    <div>龙杀数</div>
+                                </div>
+                            </div>
+                            
+                            <!-- 统计数据 - 使用API返回的stats数组 -->
+                            <div v-if="modeResponse.data.stats && modeResponse.data.stats.length > 0" class="stats-grid">
+                                <div 
+                                    v-for="stat in modeResponse.data.stats" 
+                                    :key="stat.key"
+                                    class="stat-card"
+                                >
+                                    <div class="stat-value">{{ stat.value }}</div>
+                                    <div class="stat-name">{{ stat.name }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else>
+                            <el-alert
+                                title="该模式暂无数据"
+                                type="info"
+                                :closable="false"
+                            />
+                        </div>
+                    </el-tab-pane>
+                </el-tabs>
+            </el-card>
+
+            <!-- 最近对局记录 -->
+            <el-card 
+                v-if="currentBattles && currentBattles.code === 0 && currentBattles.data && currentBattles.data.list && currentBattles.data.list.length > 0" 
+                class="recent-battles-section" 
+                shadow="hover"
+                style="margin-bottom: 20px;"
+            >
+                <template #header>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <el-icon color="#409eff"><List /></el-icon>
+                        <span style="font-weight: bold;">{{ activeTab }} - 最近对局记录</span>
+                    </div>
+                </template>
+                
+                <div class="battles-list">
+                    <div 
+                        v-for="(battle, index) in currentBattles.data.list" 
+                        :key="battle.battle_id"
+                        class="battle-item"
+                    >
+                        <div class="battle-rank" :class="getRankClass(battle.rank)">
+                            #{{ battle.rank }}
+                        </div>
+                        
+                        <div class="battle-hero">
+                            <img 
+                                :src="battle.hero.hero_icon" 
+                                :alt="battle.hero.hero_name"
+                                class="hero-icon"
+                                @error="handleImageError"
+                            />
+                            <span class="hero-name">{{ battle.hero.hero_name }}</span>
+                        </div>
+                        
+                        <div class="battle-mode">
+                            {{ getModeText(battle.subtype) }}
+                        </div>
+                        
+                        <div class="battle-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">击败</span>
+                                <span class="stat-value">{{ battle.kill }}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">伤害</span>
+                                <span class="stat-value">{{ battle.damage }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="battle-score">
+                            <div class="score-change" :class="getScoreChangeClass(battle.begin_rank_score, battle.round_rank_score)">
+                                {{ getScoreChange(battle.begin_rank_score, battle.round_rank_score) }}
+                            </div>
+                            <div class="final-score">{{ battle.round_rank_score }}</div>
+                        </div>
+                        
+                        <div class="battle-rating" :class="'rating-' + battle.rating.toLowerCase()">
+                            {{ battle.rating }}
+                        </div>
+                        
+                        <div class="battle-time">
+                            {{ formatBattleTime(battle.battle_end_time) }}
+                        </div>
+                    </div>
+                </div>
+            </el-card>
+
+            <!-- 当前模式无对局记录时的提示 -->
+            <el-card 
+                v-else-if="apiResponse && apiResponse.detailed_stats && Object.keys(apiResponse.detailed_stats).length > 0"
+                class="recent-battles-section" 
+                shadow="hover"
+                style="margin-bottom: 20px;"
+            >
+                <template #header>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <el-icon color="#409eff"><List /></el-icon>
+                        <span style="font-weight: bold;">{{ activeTab }} - 最近对局记录</span>
+                    </div>
+                </template>
+                
+                <el-alert
+                    :title="`${activeTab} 暂无对局记录`"
+                    type="info"
+                    :closable="false"
+                    style="margin: 20px 0;"
+                />
+            </el-card>
+
+            <!-- 错误提示 -->
+            <el-alert
+                v-if="errorMessage"
+                :title="errorMessage"
+                type="error"
+                :closable="false"
+                style="margin-top: 20px;"
+            />
+        </div>
+    </div>
+
+    <!-- 本地 JavaScript 文件 -->
+    <script src="app.js"></script>
+</body>
+</html>
